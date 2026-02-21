@@ -8,7 +8,6 @@ filePath = "ServersConnections.txt"
 serversIndices = dict()
 serversLabels = []
 serversConnections = []
-reverseServersConnections = []
 beginIndex = 0
 endIndex = -1
 dacIndex = -1
@@ -18,77 +17,38 @@ def getServerIndex(serverLabel):
     if serverLabel not in serversIndices:
         newIndex = len(serversConnections)
         serversConnections.append([])
-        reverseServersConnections.append([])
         serversIndices[serverLabel] = newIndex
         serversLabels.append(serverLabel)
         return newIndex
     return serversIndices[serverLabel]
 
-def findPathsImpl(begin, end, maxLength, connections):
-    pathsList = [[begin]]
-    result = []
-    while pathsList:
-        newPathsList = []
-        for path in pathsList:
-            for nextServerIndex in connections[path[-1]]:
-                if nextServerIndex == end:
-                    result.append(path.copy())
-                    result[-1].append(end)
-                elif nextServerIndex not in path:
-                    newPathsList.append(path.copy())
-                    newPathsList[-1].append(nextServerIndex)
-        pathsList = newPathsList
-    return result
+def findPathsCount(begin, end, excluding=-1):
+    serversIsDeadEnd = [False for _ in serversConnections]
+    counter = [0]
+    if excluding != -1:
+        serversIsDeadEnd[excluding] = True
 
-def findPaths(begin, end, maxLength):
-    return findPathsImpl(begin,end, maxLength, serversConnections)
-
-def findPathsReverse(begin, end, maxLength):
-    return findPathsImpl(begin,end, maxLength, reverseServersConnections)
-
-def findPathsCount(begin,end, excluding=-1):
-    serversSuccessors = [[] for _ in serversConnections]
-    frontier = [end]
-    while frontier:
-        newFrontier = []
-        for current in frontier:
-            for predecessor in reverseServersConnections[current]:
-                if predecessor == excluding:
-                    continue
-                isUnexplored = len(serversSuccessors[predecessor]) == 0
-                serversSuccessors[predecessor].append(current)
-                for otherSuccessors in serversSuccessors[current]:
-                    if otherSuccessors not in serversSuccessors[predecessor]:
-                        serversSuccessors[predecessor].append(otherSuccessors)
-                if predecessor != begin and isUnexplored and predecessor not in newFrontier:
-                    newFrontier.append(predecessor)
-        frontier = newFrontier
-
-    serversPathCounters = [0 for _ in serversConnections]
-    serversPathCounters[begin] = 1
-    frontier = [begin]
-
-    while frontier:
-        newFrontier = []
-        for current in frontier:
-            for next in serversConnections[current]:
-                if next == excluding or (next != end and not serversSuccessors[next]):
-                    continue
-                wasExplored = serversPathCounters[next] != 0
-                if wasExplored:
-                    newPathsDiscovered = serversPathCounters[next] * serversPathCounters[current]
-                    serversPathCounters[next] = serversPathCounters[next] + newPathsDiscovered 
-                    for successor in serversSuccessors[next]:
-                        serversPathCounters[successor] = serversPathCounters[successor] + newPathsDiscovered
-                else:
-                    serversPathCounters[next] = serversPathCounters[next] + serversPathCounters[current]
-                    if next != end:
-                        newFrontier.append(next)
-        frontier = newFrontier
-
-    return serversPathCounters[end]
-
-
+    def depthFirst(node, currentPath):
+        isDeadEnd = True
+        newPath = currentPath + [node]
+        for next in serversConnections[node]:
+            if serversIsDeadEnd[next]:
+                continue
+            if next == end:
+                # print("Found path: " + "->".join([serversLabels[i] for i in newPath + [next]]))
+                counter[0] = counter[0] + 1
+                isDeadEnd = False
+                continue
+            isDeadEnd = depthFirst(next, newPath) and isDeadEnd
+        # if isDeadEnd:
+        #     print("Found dead end: " + "->".join([serversLabels[i] for i in newPath]))
+        serversIsDeadEnd[node] = isDeadEnd
+        return isDeadEnd
+    
+    
+    depthFirst(begin, [])
+    return counter[0]
+    
 
 with open(filePath, "r") as file:
     for line in file.read().splitlines():
@@ -104,13 +64,10 @@ with open(filePath, "r") as file:
         connections = serversConnections[sourceIndex]
         for target in sourceAndTargets[1][1:].split():
             targetIndex = getServerIndex(target)
-            reverseConnections = reverseServersConnections[targetIndex]
             if endIndex == -1 and target == "out":
                 endIndex = targetIndex
             if targetIndex not in connections:
                 connections.append(targetIndex)
-            if sourceIndex not in reverseConnections:
-                reverseConnections.append(sourceIndex)
 
     pathsCount = 0
 
